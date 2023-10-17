@@ -21,6 +21,7 @@ class TestUser(Base):
 class CurrencyEnum(str, enum.Enum):
     NGN = "NGN"
     KES = "KES"
+    BTC = "BTC"
 
 class Wallet(Base):
     __tablename__ = 'wallets'
@@ -35,7 +36,7 @@ class Balance(Base):
     __tablename__ = 'balances'
     id = Column(Integer, primary_key=True, default=generate_uuid)
     wallet_id = Column(String, ForeignKey('wallets.uuid'), nullable=False)
-    balance = Column(Float, default=0.0)
+    amount = Column(Float, default=0.0)
     currency = Column(Enum(CurrencyEnum), nullable=False)
 
     wallet = relationship("Wallet", back_populates="balances")
