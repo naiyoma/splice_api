@@ -1,3 +1,7 @@
+# We will like to credit the https://github.com/nostrassets folks
+# for this script. I haven't modified it because it works perfectly
+# for our intend and purposes.
+
 version: '3.3'
 name: tapd-regtest-network
 services:
@@ -62,7 +66,7 @@ services:
       USERID: ${USERID:-1000}
       GROUPID: ${GROUPID:-1000}
     stop_grace_period: 2m
-    image: polarlightning/tapd:0.2.3-alpha
+    image: polarlightning/tapd:0.3.0-alpha.rc1
     container_name: alice-tap
     hostname: alice-tap
     command: >-
