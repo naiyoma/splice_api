@@ -1,3 +1,7 @@
+# We will like to credit the https://github.com/nostrassets folks
+# for this script. I haven't modified it because it works perfectly
+# for our intend and purposes.
+
 version: '3.3'
 name: tapd-regtest-network
 services:
