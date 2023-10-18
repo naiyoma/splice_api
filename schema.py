@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import List
 
 class TestUserSchema(BaseModel):
     name:str
@@ -32,7 +33,7 @@ class WalletResponseSchema(BaseModel):
     id: str
     lighting_address: str
     withdrawal_fee: int
-    balances: list[BalanceResponse] = []
+    balances: List[BalanceResponse] = []
 
     class Config:
         orm_mode = True
