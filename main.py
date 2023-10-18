@@ -27,6 +27,9 @@ app.add_middleware(DBSessionMiddleware, db_url=os.environ['DATABASE_URL'])
 async def root():
     return {"message": "hello world"}
 
+DEFAULT_FIAT_BALANCE = 100000.0
+DEFAULT_BTC_BALANCE = 5.0
+
 
 @app.post('/test_user/', response_model=TestUserSchema)
 async def user(user:TestUserSchema):
@@ -48,43 +51,54 @@ async def test_users():
 #     db.session.commit()
 #     return db_wallet
 
-@app.post('/wallets/create', response_model=WalletResponseSchema)  # Use the response schema
+@app.post('/api/wallets', response_model=WalletResponseSchema)  # Use the response schema
 async def create_wallet(wallet: WalletCreateSchema):
 
-    db_wallet = Wallet(
-        phone_number=wallet.phone_number,
-    withdrawalFee=wallet.withdrawalFee
+    new_wallet = Wallet(
+        phone_number=wallet.phoneNumber,
+        withdrawal_fee=wallet.withdrawalFee,
+        preferred_fiat_currency=wallet.preferredFiatCurrency,
+        lightning_address=wallet.phoneNumber + "@splice.africa",
     )
-    db.session.add(db_wallet)
-    db.session.commit()
 
-    # Calculate the response fields
-    fiat_balance = "10"
-    btc_balance = 10
+    db.session.add(new_wallet)
+    db.session.commit()
+    db.refresh(new_wallet)
+
+    fiat_balance = Balance(
+        amount=DEFAULT_FIAT_BALANCE,
+        currency=new_wallet.preferred_fiat_currency,
+        wallet_id=new_wallet.id
+    )
+
+    btc_balance = Balance(
+        amount=DEFAULT_BTC_BALANCE,
+        currency="BTC",
+        wallet_id=new_wallet.uuid
+    )
+
+    db.session.add(fiat_balance)
+    db.session.add(btc_balance)
+    db.session.commit()
+    db.refresh(fiat_balance)
+    db.refresh(btc_balance)
+
+   
     response_data = {
-        "id": db_wallet.id,  # Use db_wallet.id to get the generated UUID
-        "fiatBalance": fiat_balance,
-        "btcBalance": btc_balance,
-        "lightingAddress": f"{wallet.phone_number}@splice.africa",
-        "withdrawalFee": wallet.withdrawalFee
+        "id": new_wallet.id,  # Use db_wallet.id to get the generated UUID
+        "lightingAddress": new_wallet.lightning_address,
+        "withdrawalFee": new_wallet.withdrawal_fee,
+        "balances": [fiat_balance, btc_balance]
     }
     return response_data 
 
-@app.get('/wallets/{wallet_id}/', response_model=WalletResponseSchema)
+@app.get('/api/wallets/{wallet_id}/', response_model=WalletResponseSchema)
 async def get_wallet_by_id(wallet_id: str):
-    # import pdb; pdb.set_trace()
     db_wallet = db.session.query(Wallet).filter(Wallet.id == wallet_id).first()
     if db_wallet is None:
         raise HTTPException(status_code=404, detail="Wallet not found")
     
-    response_data = {
-        "id": db_wallet.id,
-        "fiatBalance": db_wallet.fiatBalance,
-        "btcBalance": db_wallet.btcBalance,
-        "lightingAddress": f"{db_wallet.phone_number}@splice.africa",
-        "withdrawalFee": db_wallet.withdrawalFee
-    }
-    return response_data
+    return db_wallet
 
 @app.get('/wallets/', response_model=List[WalletResponseSchema])
 async def get_all_wallets():

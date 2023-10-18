@@ -8,12 +8,26 @@ class TestUserSchema(BaseModel):
         orm_mode = True
 
 class WalletCreateSchema(BaseModel):
-    phone_number: str
+    phoneNumber: str
     withdrawalFee: int
+    preferredFiatCurrency: str
+
+class BalanceBase(BaseModel):
+    amount: float
+    currency: str
+
+class Balance(BalanceBase):
+    id: int
+    walletId: str
+
+    class Config:
+        orm_mode = True
 
 class WalletResponseSchema(BaseModel):
     id: str
-    fiatBalance: str
-    btcBalance: int
-    lightingAddress: str
-    withdrawalFee: int
+    lighting_address: str
+    withdrawal_fee: int
+    balances: list[Balance] = []
+
+    class Config:
+        orm_mode = True
