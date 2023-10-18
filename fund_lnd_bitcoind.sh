@@ -12,6 +12,8 @@ sleep 5
 # setup Alice
 echo "======== start send btc to alice ========"
 
+# create alice wallet
+sudo docker exec -it -u lnd alice-lnd lncli -n regtest create
 alice=`sudo docker exec -it -u lnd alice-lnd lncli --network=regtest newaddress p2tr`
 alice=$(echo $alice | awk -F'"' '{print $4}')
 echo "alice address => $alice"

@@ -66,7 +66,7 @@ services:
       USERID: ${USERID:-1000}
       GROUPID: ${GROUPID:-1000}
     stop_grace_period: 2m
-    image: polarlightning/tapd:0.2.3-alpha
+    image: polarlightning/tapd:0.3.0-alpha.rc1
     container_name: alice-tap
     hostname: alice-tap
     command: >-
