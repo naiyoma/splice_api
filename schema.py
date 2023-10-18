@@ -23,11 +23,27 @@ class Balance(BalanceBase):
     class Config:
         orm_mode = True
 
+class BalanceResponse(BaseModel):
+    amount: float
+    currency: str
+
+
 class WalletResponseSchema(BaseModel):
     id: str
     lighting_address: str
     withdrawal_fee: int
-    balances: list[Balance] = []
+    balances: list[BalanceResponse] = []
+
+    class Config:
+        orm_mode = True
+
+
+class WalletDetailResponseSchema(BaseModel):
+    walletID: str
+    fiatBalance: float
+    btcBalance: float
+    lightingAddress: str
+    withdrawalFee: int
 
     class Config:
         orm_mode = True

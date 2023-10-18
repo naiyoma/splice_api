@@ -25,18 +25,22 @@ class CurrencyEnum(str, enum.Enum):
 
 class Wallet(Base):
     __tablename__ = 'wallets'
-    id = Column(String, name="uuid", primary_key=True, default=generate_uuid)
+    id = Column(String, primary_key=True, default=str(uuid.uuid4()))
     phone_number = Column(String, nullable=False)
     lightning_address = Column(String, nullable=False)
     withdrawal_fee = Column(Integer, default=0)
+    preferred_fiat_currency = Column(Enum(CurrencyEnum), nullable=False)
 
+    # Define one-to-many relationship with Balance
     balances = relationship("Balance", back_populates="wallet")
 
-class Balance(Base): 
+
+class Balance(Base):
     __tablename__ = 'balances'
-    id = Column(Integer, primary_key=True, default=generate_uuid)
-    wallet_id = Column(String, ForeignKey('wallets.uuid'), nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wallet_id = Column(String, ForeignKey('wallets.id'), nullable=False)
     amount = Column(Float, default=0.0)
     currency = Column(Enum(CurrencyEnum), nullable=False)
 
+    # Define many-to-one relationship with Wallet
     wallet = relationship("Wallet", back_populates="balances")

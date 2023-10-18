@@ -3,15 +3,24 @@ import uuid
 import uvicorn
 from fastapi import FastAPI
 from fastapi import HTTPException
+from fastapi import Path
+from fastapi import Depends
 from fastapi_sqlalchemy import DBSessionMiddleware, db
 
-from typing import List
+from typing import List, Tuple
 
 from schema import TestUserSchema
 from schema import WalletCreateSchema
 from schema import WalletResponseSchema
+from schema import BalanceResponse
+from schema import WalletDetailResponseSchema
 
-from models import TestUser, Wallet
+from sqlalchemy.orm import Session
+from database import SessionLocal
+from models import TestUser, Wallet, Balance, CurrencyEnum
+
+from sqlalchemy.orm import Session
+
 
 from dotenv import load_dotenv
 
@@ -23,33 +32,16 @@ app = FastAPI()
 
 app.add_middleware(DBSessionMiddleware, db_url=os.environ['DATABASE_URL'])
 
-@app.get("/")
-async def root():
-    return {"message": "hello world"}
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 DEFAULT_FIAT_BALANCE = 100000.0
 DEFAULT_BTC_BALANCE = 5.0
 
-
-@app.post('/test_user/', response_model=TestUserSchema)
-async def user(user:TestUserSchema):
-    db_user= TestUser(name=user.name, age=user.age)
-    db.session.add(db_user)
-    db.session.commit()
-    return db_user
-
-@app.get('/users/')
-async def test_users():
-    test_user = db.session.query(TestUser).all()
-    return test_user
-
-
-# @app.post('/wallets/create', response_model=WalletCreateSchema)
-# async def wallet(wallet:WalletCreateSchema):
-#     db_wallet= Wallet(phone_number=wallet.phone_number, withdrawalFee=wallet.withdrawalFee)
-#     db.session.add(db_wallet)
-#     db.session.commit()
-#     return db_wallet
 
 @app.post('/api/wallets', response_model=WalletResponseSchema)  # Use the response schema
 async def create_wallet(wallet: WalletCreateSchema):
@@ -63,7 +55,6 @@ async def create_wallet(wallet: WalletCreateSchema):
 
     db.session.add(new_wallet)
     db.session.commit()
-    db.refresh(new_wallet)
 
     fiat_balance = Balance(
         amount=DEFAULT_FIAT_BALANCE,
@@ -74,49 +65,55 @@ async def create_wallet(wallet: WalletCreateSchema):
     btc_balance = Balance(
         amount=DEFAULT_BTC_BALANCE,
         currency="BTC",
-        wallet_id=new_wallet.uuid
+        wallet_id=new_wallet.id
     )
 
     db.session.add(fiat_balance)
     db.session.add(btc_balance)
     db.session.commit()
-    db.refresh(fiat_balance)
-    db.refresh(btc_balance)
 
-   
     response_data = {
-        "id": new_wallet.id,  # Use db_wallet.id to get the generated UUID
-        "lightingAddress": new_wallet.lightning_address,
-        "withdrawalFee": new_wallet.withdrawal_fee,
-        "balances": [fiat_balance, btc_balance]
+        "id": new_wallet.id,
+        "lighting_address": new_wallet.lightning_address,  # Corrected field name
+        "withdrawal_fee": new_wallet.withdrawal_fee,  # Corrected field name
+        "balances": [
+            {"amount": fiat_balance.amount, "currency": fiat_balance.currency.value},
+            {"amount": btc_balance.amount, "currency": btc_balance.currency.value}
+        ]
     }
-    return response_data 
+    return response_data
 
-@app.get('/api/wallets/{wallet_id}/', response_model=WalletResponseSchema)
-async def get_wallet_by_id(wallet_id: str):
-    db_wallet = db.session.query(Wallet).filter(Wallet.id == wallet_id).first()
+@app.get('/api/wallets/{wallet_id}', response_model=WalletDetailResponseSchema)
+async def get_wallet_by_id(
+    wallet_id: str = Path(..., title="The ID of the wallet to retrieve"),
+    db: Session = Depends(get_db)
+):
+    db_wallet = get_wallet_from_db(wallet_id, db)
     if db_wallet is None:
         raise HTTPException(status_code=404, detail="Wallet not found")
     
-    return db_wallet
+    fiat_balance, btc_balance = calculate_balances(db_wallet.balances)
+    
+    response_data = {
+        "walletID": db_wallet.id,
+        "fiatBalance": fiat_balance,
+        "btcBalance": btc_balance,
+        "lightingAddress": f"{db_wallet.phone_number}@splice.africa",
+        "withdrawalFee": db_wallet.withdrawal_fee,
+    }
+    return response_data
 
-@app.get('/wallets/', response_model=List[WalletResponseSchema])
-async def get_all_wallets():
-    db_wallets = db.session.query(Wallet).all()
 
-    # Assuming you have logic to calculate fiat_balance and btc_balance for each wallet
-    wallets_data = []
-    for db_wallet in db_wallets:
-        fiat_balance = db_wallet.fiatBalance
-        btc_balance = db_wallet.btcBalance
+def get_wallet_from_db(wallet_id: str, db: Session = Depends(get_db)) -> Wallet:
+    return db.query(Wallet).filter(Wallet.id == wallet_id).first()
 
-        wallet_data = {
-            "id": db_wallet.id,
-            "fiatBalance": fiat_balance,
-            "btcBalance": btc_balance,
-            "lightingAddress": f"{db_wallet.phone_number}@splice.africa",
-            "withdrawalFee": db_wallet.withdrawalFee
-        }
-        wallets_data.append(wallet_data)
+def calculate_balances(balances: List[Balance]) -> Tuple[float, float]:
+        fiat_balance = 0.0
+        btc_balance = 0.0
+        for balance in balances:
+            if balance.currency == CurrencyEnum.NGN or balance.currency == CurrencyEnum.KES:
+                fiat_balance += balance.amount
+            elif balance.currency == CurrencyEnum.BTC:
+                btc_balance += balance.amount
+        return fiat_balance, btc_balance
 
-    return wallets_data
