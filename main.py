@@ -9,15 +9,16 @@ from fastapi_sqlalchemy import DBSessionMiddleware, db
 
 from typing import List, Tuple
 
-from schema import TestUserSchema
 from schema import WalletCreateSchema
 from schema import WalletResponseSchema
 from schema import BalanceResponse
+from schema import InvoiceRequestSchema
 from schema import WalletDetailResponseSchema
+from schema import InvoiceResponseSchema
 
 from sqlalchemy.orm import Session
 from database import SessionLocal
-from models import TestUser, Wallet, Balance, CurrencyEnum
+from models import Wallet, Balance, CurrencyEnum
 
 from sqlalchemy.orm import Session
 
@@ -42,6 +43,27 @@ def get_db():
 DEFAULT_FIAT_BALANCE = 100000.0
 DEFAULT_BTC_BALANCE = 5.0
 
+@app.post('/api/invoices', response_model=InvoiceResponseSchema)  # Use the response schema
+async def create_invoice(invoice_request: InvoiceRequestSchema,  db: Session = Depends(get_db)):
+    # use the lightning address to figure out the withdrawal fee for the merchant/agent 
+    # add the withdrawal to the amount to send. 
+    # create ask tapd to create an invoice for the amount to send
+    # Do an FX for the KES To NGN, using our set rates.
+    # return invoice/address and amount Precious has to pay in NGN
+    receiver_wallet = db.query(Wallet).filter(Wallet.lightning_address == invoice_request.destionationAddress).first()
+    sender_wallet = db.query(Wallet).filter(Wallet.id == invoice_request.walletId).first()
+    if receiver_wallet is None:
+        raise HTTPException(status_code=404, detail="Wallet not found")
+    
+    amount_to_send = invoice_request.amount + receiver_wallet.withdrawal_fee
+    amount_to_pay = forex(amount_to_send, sender_wallet.preferred_fiat_currency, receiver_wallet.preferred_fiat_currency)
+    response_data = {
+        "invoice": "",
+        "amount": amount_to_pay,
+        "currency": sender_wallet.preferred_fiat_currency,
+    }
+    return response_data
+    
 
 @app.post('/api/wallets', response_model=WalletResponseSchema)  # Use the response schema
 async def create_wallet(wallet: WalletCreateSchema):
@@ -92,8 +114,6 @@ async def get_wallet_by_id(
     if db_wallet is None:
         raise HTTPException(status_code=404, detail="Wallet not found")
     
-    fiat_balance, btc_balance = calculate_balances(db_wallet.balances)
-    
     response_data = {
         "walletID": db_wallet.id,
         "fiatBalance": fiat_balance,
@@ -107,13 +127,19 @@ async def get_wallet_by_id(
 def get_wallet_from_db(wallet_id: str, db: Session = Depends(get_db)) -> Wallet:
     return db.query(Wallet).filter(Wallet.id == wallet_id).first()
 
-def calculate_balances(balances: List[Balance]) -> Tuple[float, float]:
-        fiat_balance = 0.0
-        btc_balance = 0.0
-        for balance in balances:
-            if balance.currency == CurrencyEnum.NGN or balance.currency == CurrencyEnum.KES:
-                fiat_balance += balance.amount
-            elif balance.currency == CurrencyEnum.BTC:
-                btc_balance += balance.amount
-        return fiat_balance, btc_balance
+
+def forex(amount_to_send, sender_fiat_currency, receiver_fiat_currency):
+    if sender_fiat_currency == receiver_fiat_currency:
+        raise HTTPException(status_code=400, detail="Sender and receiver fiat currencies cannot be the same")
+    rate_key = f"{receiver_fiat_currency}/{sender_fiat_currency}"
+    rates = {
+        "NGN/KES": 0.20,
+        "KES/NGN": 5.11,
+        "BTC/KES": 4235589.39,
+        "KES/BTC": 0.000000236,
+        "BTC/NGN": 21644172.60,
+        "NGN/BTC": 0.000000046,
+    }
+
+    return amount_to_send * rates[rate_key]
 
