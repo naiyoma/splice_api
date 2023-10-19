@@ -11,17 +11,17 @@ def generate_uuid():
     return str(uuid.uuid4())
 
 
-class TestUser(Base):
-    __tablename__ = 'user'
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    age = Column(Integer)
-
-
 class CurrencyEnum(str, enum.Enum):
     NGN = "NGN"
     KES = "KES"
     BTC = "BTC"
+
+
+
+class AssetCurrencyEnum(str, enum.Enum):
+    NGN = "NGN"
+    KES = "KES"
+    BTC = "BTC"    
 
 class Wallet(Base):
     __tablename__ = 'wallets'
@@ -44,3 +44,11 @@ class Balance(Base):
 
     # Define many-to-one relationship with Wallet
     wallet = relationship("Wallet", back_populates="balances")
+
+
+class Asset(Base):
+    __tablename__ = 'assets'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    amount = Column(Float, default=0.0)
+    asset_id = Column(String, nullable=False, unique=True)
+    currency = Column(Enum(AssetCurrencyEnum), nullable=False, unique=True)

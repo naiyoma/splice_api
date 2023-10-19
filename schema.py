@@ -1,12 +1,6 @@
 from pydantic import BaseModel
 from typing import List
 
-class TestUserSchema(BaseModel):
-    name:str
-    age:int
-
-    class Config:
-        orm_mode = True
 
 class WalletCreateSchema(BaseModel):
     phoneNumber: str
@@ -48,3 +42,14 @@ class WalletDetailResponseSchema(BaseModel):
 
     class Config:
         orm_mode = True
+
+class InvoiceRequestSchema(BaseModel):
+    walletId: str
+    destionationAddress: str
+    amount: float
+    currency: str
+
+class InvoiceResponseSchema(BaseModel):
+    invoice: str
+    amount: float
+    currency: str
