@@ -5,7 +5,7 @@
 # Generate init blocks and create wallet
 echo "Start create wallet and generate 240 blocks"
 sudo docker exec -it -u bitcoin bitcoind-backend bitcoin-cli -regtest createwallet "miningwallet"
-sudo docker exec -it -u bitcoin bitcoind-backend bitcoin-cli -regtest -rpcwallet=miningwallet -generate 240
+sudo docker exec -it -u bitcoin bitcoind-backend bitcoin-cli -regtest -rpcwallet=miningwallet -generate 480
 echo "======== finish generate init blocks ========"
 sleep 5
 
@@ -13,7 +13,6 @@ sleep 5
 echo "======== start send btc to alice ========"
 
 # create alice wallet
-sudo docker exec -it -u lnd alice-lnd lncli -n regtest create
 alice=`sudo docker exec -it -u lnd alice-lnd lncli --network=regtest newaddress p2tr`
 alice=$(echo $alice | awk -F'"' '{print $4}')
 echo "alice address => $alice"
@@ -29,6 +28,6 @@ echo "copy mining.sh to backend and start mining"
 # copy mining.sh to backend
 cp ./mining.sh ./volumes/bitcoind/backend/regtest/
 # start mining
-sudo docker exec -d -u bitcoin bitcoind-backend bash -c "/home/bitcoin/.bitcoin/regtest/mining.sh"
+sudo docker exec -d -u bitcoin bitcoind-backend bash "/home/bitcoin/.bitcoin/regtest/mining.sh"
 echo "finish start auto mining"
 sleep 3
