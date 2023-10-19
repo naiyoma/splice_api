@@ -1,4 +1,3 @@
-from models import CurrencyEnum
 import base64, codecs, json, requests
 
 
@@ -55,7 +54,7 @@ def burn_asset(asset_id, amount):
 def generate_address(asset_id, amount):
     url = f'{base_url}/addrs'
     data = {
-        'asset_id': base64.b64encode(bytes.fromhex(asset_id)),
+        'asset_id': asset_id,
         'amt': amount,
     }
     res = requests.post(url, headers=headers, data=json.dumps(data), verify=TLS_PATH)
@@ -64,7 +63,7 @@ def generate_address(asset_id, amount):
 def send_asset(address):
     url = f'{base_url}/send'
     data = {
-        'tap_addrs': address,
+        'tap_addrs': [address],
     }
     res = requests.post(url, headers=headers, data=json.dumps(data), verify=TLS_PATH)
     return res.json()

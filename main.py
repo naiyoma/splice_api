@@ -1,6 +1,7 @@
 import os
 import uuid
 import uvicorn
+import time
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Path
@@ -27,11 +28,11 @@ from schema import RampPaymentResponseSchema
 
 from sqlalchemy.orm import Session
 from database import SessionLocal
-from models import Wallet, Balance, CurrencyEnum, Asset
+from models import Wallet, Balance, Asset
 
 from sqlalchemy.orm import Session
 
-from assets import create_asset, finalize_asset_creation, burn_asset, generate_address, send_asset, list_assets
+from assets import create_asset, finalize_asset_creation, burn_asset, generate_address, send_asset, list_assets, get_transfers
 
 
 from dotenv import load_dotenv
@@ -70,13 +71,14 @@ async def create_invoice(invoice_request: InvoiceRequestSchema,  db: Session = D
     # Do an FX for the KES To NGN, using our set rates.
     # return invoice/address and amount Precious has to pay in NGN
     receiver_wallet = db.query(Wallet).filter(Wallet.lightning_address == invoice_request.destionationAddress).first()
+    receiver_asset = db.query(Asset).filter(Asset.currency == receiver_wallet.preferred_fiat_currency).first()
     sender_wallet = db.query(Wallet).filter(Wallet.id == invoice_request.walletId).first()
     if receiver_wallet is None:
         raise HTTPException(status_code=404, detail="Wallet not found")
     
     amount_to_send = invoice_request.amount + receiver_wallet.withdrawal_fee
     amount_to_pay = forex(amount_to_send, sender_wallet.preferred_fiat_currency, receiver_wallet.preferred_fiat_currency)
-    address = generate_address(receiver_wallet.lightning_address, amount_to_send)
+    address = generate_address(receiver_asset.asset_id, amount_to_send)
     response_data = {
         "invoice": address['encoded'],
         "amount": amount_to_pay,
@@ -95,11 +97,11 @@ async def pay_invoice(payment_request: PaymentRequestSchema,  db: Session = Depe
         raise HTTPException(status_code=404, detail="Wallet not found")
 
     for balance in sender_wallet.balances:
-        if balance.currency.value != 'BTC':
+        if balance.currency != 'BTC':
             balance.amount -= payment_request.amount
 
     for balance in receiver_wallet.balances:
-        if balance.currency.value != 'BTC':
+        if balance.currency != 'BTC':
             balance.amount += forex(payment_request.amount, receiver_wallet.preferred_fiat_currency, sender_wallet.preferred_fiat_currency)
 
     db.add(sender_wallet)
@@ -130,7 +132,7 @@ async def claim_payment(txid: str):
     # if there is return true if there is not return false
     transfers = get_transfers()
     for transfer in transfers['transfers']:
-        if transfer['transfer']['anchor_tx_hash'] == txid:
+        if transfer['anchor_tx_hash'] == txid:
             return {
                 "succeeded": True
             }
@@ -160,6 +162,8 @@ async def get_ramp_invoice(req: RampInvoiceRequestSchema):
     for asset in assets['assets']:
         if asset['asset_genesis']['name'] == req.currency:
             asset_id = asset['asset_genesis']['asset_id']
+    if req.currency == 'BTC':
+        req.amount = req.amount * 100000000
     address = generate_address(asset_id, req.amount)
 
     return {
@@ -168,27 +172,34 @@ async def get_ramp_invoice(req: RampInvoiceRequestSchema):
 
 @app.post('/api/on/invoices/send', response_model=RampPaymentResponseSchema)
 async def pay_ramp_invoice(req: RampPaymentRequestSchema, db: Session = Depends(get_db)):
-    payment_res = send_asset(req.tapdAddress)
-    receiver_wallet = db.query(Wallet).filter(Wallet.lightning_address == req.lightningAddress).first()
-    if receiver_wallet is None:
-        raise HTTPException(status_code=404, detail="Wallet not found")
+    payment_res = send_asset(req.destinationAddress)
+    if payment_res["code"] == 2:
+        return {
+            "paymentId": "000000000000000",
+            "status": "Payment Uncofirmed"
+        }
+    else:
+        
+        receiver_wallet = db.query(Wallet).filter(Wallet.lightning_address == req.lightningAddress).first()
+        if receiver_wallet is None:
+            raise HTTPException(status_code=404, detail="Wallet not found")
 
-    for balance in receiver_wallet.balances:
-        if balance.currency.value == req.currency:
-            balance.amount += req.amount
-    
-    db.add(receiver_wallet)
-    db.commit()
+        for balance in receiver_wallet.balances:
+            if balance.currency == req.currency:
+                balance.amount += req.amount
+        
+        db.add(receiver_wallet)
+        db.commit()
 
-    return {
-        "paymentId": payment_res['transfer']['anchor_tx_hash'],
-        "status": "Payment successful"
-    }
+        return {
+            "paymentId": payment_res['transfer']['anchor_tx_hash'],
+            "status": "Payment successful"
+        }
 
 
 @app.post('/api/wallets', response_model=WalletResponseSchema)  # Use the response schema
 async def create_wallet(wallet: WalletCreateSchema, db: Session = Depends(get_db)):
-
+    #import pdb; pdb.set_trace()
     new_wallet = Wallet(
         phone_number=wallet.phoneNumber,
         withdrawal_fee=wallet.withdrawalFee,
@@ -203,7 +214,7 @@ async def create_wallet(wallet: WalletCreateSchema, db: Session = Depends(get_db
     btc_asset = create_asset("BTC", DEFAULT_BTC_BALANCE)
     finalize_asset_creation()
 
-    existing_fiat_asset = db.query(Asset).filter(Asset.currency == CurrencyEnum(wallet.preferredFiatCurrency)).first()
+    existing_fiat_asset = db.query(Asset).filter(Asset.currency == wallet.preferredFiatCurrency).first()
 
    
 
@@ -223,15 +234,15 @@ async def create_wallet(wallet: WalletCreateSchema, db: Session = Depends(get_db
         new_asset = Asset(
             amount=DEFAULT_FIAT_BALANCE,
             asset_id=asset_id,
-            currency=CurrencyEnum(wallet.preferredFiatCurrency)
+            currency=wallet.preferredFiatCurrency
         )
         db.add(new_asset)
 
-    existing_btc_asset = db.query(Asset).filter(Asset.currency == CurrencyEnum('BTC')).first()
+    existing_btc_asset = db.query(Asset).filter(Asset.currency == 'BTC').first()
 
     if existing_btc_asset:
         # If an asset with the same name exists, update it
-        existing_btc_asset.amount += btc_asset["amount"]
+        existing_btc_asset.amount += DEFAULT_BTC_BALANCE
         db.add(existing_btc_asset)
     else:
         # If not, create a new asset
@@ -245,7 +256,7 @@ async def create_wallet(wallet: WalletCreateSchema, db: Session = Depends(get_db
         new_asset = Asset(
             amount=DEFAULT_BTC_BALANCE,
             asset_id=asset_id,
-            currency=CurrencyEnum('BTC')
+            currency='BTC'
         )
         db.add(new_asset)
 
@@ -267,11 +278,11 @@ async def create_wallet(wallet: WalletCreateSchema, db: Session = Depends(get_db
 
     response_data = {
         "id": new_wallet.id,
-        "lighting_address": new_wallet.lightning_address,  # Corrected field name
+        "lightning_address": new_wallet.lightning_address,  # Corrected field name
         "withdrawal_fee": new_wallet.withdrawal_fee,  # Corrected field name
         "balances": [
-            {"amount": fiat_balance.amount, "currency": fiat_balance.currency.value},
-            {"amount": btc_balance.amount, "currency": btc_balance.currency.value}
+            {"amount": fiat_balance.amount, "currency": fiat_balance.currency},
+            {"amount": btc_balance.amount, "currency": btc_balance.currency}
         ]
     }
     return response_data
@@ -288,10 +299,15 @@ async def get_wallet_by_id(
     response_data = {
         "id": db_wallet.id,
         "balances": db_wallet.balances,
-        "lightingAddress": db_wallet.lightning_address,
-        "withdrawalFee": db_wallet.withdrawal_fee,
+        "lightning_address": db_wallet.lightning_address,
+        "withdrawal_fee": db_wallet.withdrawal_fee,
     }
     return response_data
+
+@app.get('/api/wallets', response_model=List[WalletResponseSchema])
+def get_all_wallets(db: Session = Depends(get_db)):
+    wallets = db.query(Wallet).all()
+    return wallets
 
 
 def get_wallet_from_db(wallet_id: str, db: Session = Depends(get_db)) -> Wallet:
