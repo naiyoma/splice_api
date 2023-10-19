@@ -25,23 +25,13 @@ class BalanceResponse(BaseModel):
 
 class WalletResponseSchema(BaseModel):
     id: str
-    lighting_address: str
-    withdrawal_fee: int
+    lightingAddress: str
+    withdrawalFee: int
     balances: List[BalanceResponse] = []
 
     class Config:
         orm_mode = True
 
-
-class WalletDetailResponseSchema(BaseModel):
-    walletID: str
-    fiatBalance: float
-    btcBalance: float
-    lightingAddress: str
-    withdrawalFee: int
-
-    class Config:
-        orm_mode = True
 
 class InvoiceRequestSchema(BaseModel):
     walletId: str
@@ -53,3 +43,49 @@ class InvoiceResponseSchema(BaseModel):
     invoice: str
     amount: float
     currency: str
+
+class PaymentRequestSchema(BaseModel):
+    sourceAddress: str
+    amount: float
+    currency: str
+    destinationAddress: str
+    tapdAddress: str
+
+class PaymentResponseSchema(BaseModel):
+    proofOfPayment: str
+    amount: float
+    currency: str
+    destinationAddress: str
+
+class ClaimPaymentResponseSchema(BaseModel):
+    succeeded: bool
+
+class RateResponseSchema(BaseModel):
+    rate: float
+
+class CalculateRequestSchema(BaseModel):
+    source: str
+    destination: str
+    amount: float
+    rate: float
+
+class CalculateResponseSchema(BaseModel):
+    amount: float
+    currency: str
+
+class RampInvoiceRequestSchema(BaseModel):
+    amount: float
+    currency: str
+
+class RampInvoiceResponseSchema(BaseModel):
+    destinationAddress: str
+
+class RampPaymentRequestSchema(BaseModel):
+    destinationAddress: str
+    amount: float
+    currency: str
+    lightningAddress: str
+
+class RampPaymentResponseSchema(BaseModel):
+    paymentId: str
+    status: str
