@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Path
 from fastapi import Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi_sqlalchemy import DBSessionMiddleware, db
 
 from typing import List, Tuple
@@ -43,7 +44,21 @@ load_dotenv('.env')
 app = FastAPI()
 
 
-app.add_middleware(DBSessionMiddleware, db_url=os.environ['DATABASE_URL'])
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Add DBSession middleware
+# Ensure you've imported DBSessionMiddleware before this
+app.add_middleware(
+    DBSessionMiddleware, 
+    db_url=os.environ['DATABASE_URL']
+)
 
 def get_db():
     db = SessionLocal()
