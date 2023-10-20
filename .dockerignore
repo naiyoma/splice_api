@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.venv/
+.venv/bin/
+.venv/include/
+.venv/lib/
+.venv/lib64/
+
