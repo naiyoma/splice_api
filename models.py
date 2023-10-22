@@ -11,7 +11,7 @@ def generate_uuid():
 
 class Wallet(Base):
     __tablename__ = 'wallets'
-    id = Column(String, primary_key=True, default=str(uuid.uuid4()))
+    id = Column(String, primary_key=True, default=generate_uuid)
     phone_number = Column(String, nullable=False, unique=True)
     lightning_address = Column(String, nullable=False, unique=True)
     withdrawal_fee = Column(Integer, default=0)

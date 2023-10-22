@@ -8,10 +8,13 @@ services:
   splice_api:
     build: .
     container_name: splice_api
+    volumes:
+      - ./volumes/tapd/alice-tap:/home/tap/.tapd
     ports:
       - "8000:8000"
     depends_on:
-      - backend
+      - postgresdb
+      - alice-tap
 
   backend:
     environment:
@@ -69,16 +72,12 @@ services:
       - '8081:8080'
       - '10001:10009'
       - '9735:9735'
+    depends_on:
+      - backend
   alice-tap:
     environment:
       USERID: ${USERID:-1000}
       GROUPID: ${GROUPID:-1000}
-      POSTGRES_USERNAME: ${POSTGRES_USERNAME}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: ${POSTGRES_PORT}
-      POSTGRES_DB_NAME: ${POSTGRES_DB_NAME}
-      DATABASE_URL: ${DATABASE_URL}
     stop_grace_period: 2m
     image: polarlightning/tapd:0.3.0-alpha
     container_name: alice-tap
@@ -99,17 +98,17 @@ services:
     ports:
       - '8289:8089'
       - '12029:10029'
-  postgres:
+    depends_on:
+      - alice
+  postgresdb:
     image: postgres:13  # Using version 13 
-    container_name: tapd-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USERNAME}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB_NAME}
+    container_name: postgresdb
+    env_file:
+      - .env
+    ports:
+      - 5432:5432 
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
 
 volumes:
   postgres_data:
