@@ -295,6 +295,7 @@ async def create_wallet(wallet: WalletCreateSchema, db: Session = Depends(get_db
         "id": new_wallet.id,
         "lightning_address": new_wallet.lightning_address,  # Corrected field name
         "withdrawal_fee": new_wallet.withdrawal_fee,  # Corrected field name
+        "preferred_fiat_currency": new_wallet.preferred_fiat_currency,
         "balances": [
             {"amount": fiat_balance.amount, "currency": fiat_balance.currency},
             {"amount": btc_balance.amount, "currency": btc_balance.currency}

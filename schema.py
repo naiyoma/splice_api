@@ -27,6 +27,7 @@ class BalanceResponse(BaseModel):
 class WalletResponseSchema(BaseModel):
     id: str
     lightning_address: str
+    preferred_fiat_currency: str
     withdrawal_fee: int
     balances: List[BalanceResponse] = []
 
