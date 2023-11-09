@@ -6,6 +6,8 @@ version: '3.3'
 name: tapd-regtest-network
 services:
   splice_api:
+    stdin_open: true
+    tty: true
     build: .
     container_name: splice_api
     volumes:
