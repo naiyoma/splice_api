@@ -7,6 +7,18 @@ TLS_PATH = '/home/tap/.tapd/tls.cert'
 base_url = f'https://{REST_HOST}/v1/taproot-assets'
 
 
+def decode_invoice(address):
+    url = f'https://{REST_HOST}/v1/taproot-assets/addrs/decode'
+    macaroon = codecs.encode(open(MACAROON_PATH, 'rb').read(), 'hex')
+    headers = {'Grpc-Metadata-macaroon': macaroon}
+    data = {
+    'addr': address,
+    }
+    r = requests.post(url, headers=headers, data=json.dumps(data), verify=TLS_PATH)
+    return r.json()
+
+
+
 def create_asset(asset, amount):
     macaroon = codecs.encode(open(MACAROON_PATH, 'rb').read(), 'hex')
     headers = {'Grpc-Metadata-macaroon': macaroon}
@@ -61,6 +73,7 @@ def burn_asset(asset_id, amount):
     return res.json()
 
 def generate_address(asset_id, amount):
+    
     macaroon = codecs.encode(open(MACAROON_PATH, 'rb').read(), 'hex')
     headers = {'Grpc-Metadata-macaroon': macaroon}
     url = f'{base_url}/addrs'

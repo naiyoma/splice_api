@@ -116,6 +116,7 @@ class PaymentResponse(BaseModel):
     receiver_wallet: WalletResponse
     sent_payment: bool = False
     receive_payment: bool = False
+    fees: int
 
 class PaymentsResponse(BaseModel):
     payments: List[PaymentResponse] = []

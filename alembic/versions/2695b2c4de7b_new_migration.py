@@ -56,6 +56,7 @@ def upgrade() -> None:
         sa.Column('currency', sa.String(), nullable=False),
         sa.Column('sent_payment', sa.Boolean(), default=False), 
         sa.Column('receive_payment', sa.Boolean(), default=False),
+        sa.Column('fees', sa.Integer(), nullable=True),
         sa.Column('timestamp', sa.DateTime(), server_default=func.now()),
         sa.Column('payment_status', sa.String(), default="Pending"),
         sa.PrimaryKeyConstraint('id'),

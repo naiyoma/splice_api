@@ -57,6 +57,8 @@ class Payment(Base):
     receiver_wallet_id = Column(String, ForeignKey('wallets.id', name='fk_payments_receiver_wallet_id'), nullable=False)
     sent_payment = Column(Boolean, default=False)
     receive_payment = Column(Boolean, default=False)
+    fees = Column(Integer, default=0)
     # Define many-to-one relationship with Wallet for receiver wallet and for sender wallet
     receiver_wallet = relationship("Wallet", back_populates="received_payments", foreign_keys=[receiver_wallet_id])
     sender_wallet = relationship("Wallet", back_populates="sent_payments", foreign_keys=[source_wallet_id])
+    

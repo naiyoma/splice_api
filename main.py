@@ -9,7 +9,7 @@ from fastapi import Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_sqlalchemy import DBSessionMiddleware, db
 
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 from schema import WalletCreateSchema
 from schema import WalletResponseSchema
@@ -36,7 +36,7 @@ from models import Wallet, Balance, Asset, Payment
 
 from sqlalchemy.orm import Session
 
-from assets import create_asset, finalize_asset_creation, burn_asset, generate_address, send_asset, list_assets, get_transfers
+from assets import create_asset, finalize_asset_creation, burn_asset, generate_address, send_asset, list_assets, get_transfers, decode_invoice
 
 
 from dotenv import load_dotenv
@@ -98,15 +98,6 @@ async def create_invoice(invoice_request: InvoiceRequestSchema,  db: Session = D
     amount_to_pay = forex(amount_to_send, sender_wallet.preferred_fiat_currency, receiver_wallet.preferred_fiat_currency)
     address = generate_address(receiver_asset.asset_id, amount_to_send)
 
-    payment = Payment(
-        amount=amount_to_pay,
-        currency=sender_wallet.preferred_fiat_currency,
-        source_wallet_id=sender_wallet.id,
-        receiver_wallet_id=receiver_wallet.id
-    )
-    db.add(payment)
-    db.commit()
-
     response_data = {
         "invoice": address['encoded'],
         "amount": amount_to_pay,
@@ -145,6 +136,15 @@ async def pay_invoice(payment_request: PaymentRequestSchema,  db: Session = Depe
     # mint equivalent amount of KES asset
     create_asset(receiver_wallet.preferred_fiat_currency, forex(payment_request.amount, receiver_wallet.preferred_fiat_currency, sender_wallet.preferred_fiat_currency))
     finalize_asset_creation()
+    
+    payment = Payment(
+        amount=payment_request.amount,
+        currency=sender_wallet.preferred_fiat_currency,
+        source_wallet_id=sender_wallet.id,
+        receiver_wallet_id=receiver_wallet.id
+    )
+    db.add(payment)
+    db.commit()
 
     response_data = {
         "proofOfPayment": payment_res['transfer']['anchor_tx_hash'],
@@ -227,7 +227,7 @@ async def pay_ramp_invoice(req: RampPaymentRequestSchema, db: Session = Depends(
 
 @app.post('/api/wallets', response_model=WalletResponseSchema)  # Use the response schema
 async def create_wallet(wallet: WalletCreateSchema, db: Session = Depends(get_db)):
-    #import pdb; pdb.set_trace()
+    
     new_wallet = Wallet(
         phone_number=wallet.phoneNumber,
         withdrawal_fee=wallet.withdrawalFee,
@@ -378,7 +378,15 @@ async def get_payments_for_wallet(wallet_id: str, db: Session = Depends(get_db))
             receiver_wallet=receiver_wallet.__dict__,
             sent_payment=sent_payment,
             receive_payment=receive_payment,
+            fees =sender_wallet.withdrawal_fee
         )
         payments_response.append(payment_response)
         
     return PaymentsResponse(payments=payments_response)
+
+
+
+@app.post("/api/invoice/decode")
+def decode_address(address: Any):
+    decoded_invoice = decode_invoice(address)
+    return decoded_invoice
