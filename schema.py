@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Literal
+from typing import Optional
+from datetime import datetime
 
 Currency = Literal["NGN", "KES", "BTC"]
 
@@ -91,3 +93,32 @@ class RampPaymentRequestSchema(BaseModel):
 class RampPaymentResponseSchema(BaseModel):
     paymentId: str
     status: str
+
+class WalletResponse(BaseModel):
+    id: str
+    phone_number: str
+    lightning_address: str
+    withdrawal_fee: int
+    preferred_fiat_currency: str
+
+
+class PaymentFilterRequest(BaseModel):
+    sender_wallet_id: Optional[str] = None
+    receiver_wallet_id: Optional[str] = None
+
+class PaymentResponse(BaseModel):
+    id: int
+    amount: float
+    currency: str
+    timestamp: datetime
+    payment_status: str
+    sender_wallet: WalletResponse
+    receiver_wallet: WalletResponse
+    sent_payment: bool = False
+    receive_payment: bool = False
+    fees: int
+
+class PaymentsResponse(BaseModel):
+    payments: List[PaymentResponse] = []
+
+

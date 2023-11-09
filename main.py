@@ -9,7 +9,7 @@ from fastapi import Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_sqlalchemy import DBSessionMiddleware, db
 
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 from schema import WalletCreateSchema
 from schema import WalletResponseSchema
@@ -26,14 +26,17 @@ from schema import RampInvoiceRequestSchema
 from schema import RampInvoiceResponseSchema
 from schema import RampPaymentRequestSchema
 from schema import RampPaymentResponseSchema
+from schema import PaymentsResponse
+from schema import PaymentResponse
+from schema import PaymentFilterRequest
 
 from sqlalchemy.orm import Session
 from database import SessionLocal
-from models import Wallet, Balance, Asset
+from models import Wallet, Balance, Asset, Payment
 
 from sqlalchemy.orm import Session
 
-from assets import create_asset, finalize_asset_creation, burn_asset, generate_address, send_asset, list_assets, get_transfers
+from assets import create_asset, finalize_asset_creation, burn_asset, generate_address, send_asset, list_assets, get_transfers, decode_invoice
 
 
 from dotenv import load_dotenv
@@ -94,6 +97,7 @@ async def create_invoice(invoice_request: InvoiceRequestSchema,  db: Session = D
     amount_to_send = invoice_request.amount + receiver_wallet.withdrawal_fee
     amount_to_pay = forex(amount_to_send, sender_wallet.preferred_fiat_currency, receiver_wallet.preferred_fiat_currency)
     address = generate_address(receiver_asset.asset_id, amount_to_send)
+
     response_data = {
         "invoice": address['encoded'],
         "amount": amount_to_pay,
@@ -132,6 +136,15 @@ async def pay_invoice(payment_request: PaymentRequestSchema,  db: Session = Depe
     # mint equivalent amount of KES asset
     create_asset(receiver_wallet.preferred_fiat_currency, forex(payment_request.amount, receiver_wallet.preferred_fiat_currency, sender_wallet.preferred_fiat_currency))
     finalize_asset_creation()
+    
+    payment = Payment(
+        amount=payment_request.amount,
+        currency=sender_wallet.preferred_fiat_currency,
+        source_wallet_id=sender_wallet.id,
+        receiver_wallet_id=receiver_wallet.id
+    )
+    db.add(payment)
+    db.commit()
 
     response_data = {
         "proofOfPayment": payment_res['transfer']['anchor_tx_hash'],
@@ -214,7 +227,7 @@ async def pay_ramp_invoice(req: RampPaymentRequestSchema, db: Session = Depends(
 
 @app.post('/api/wallets', response_model=WalletResponseSchema)  # Use the response schema
 async def create_wallet(wallet: WalletCreateSchema, db: Session = Depends(get_db)):
-    #import pdb; pdb.set_trace()
+    
     new_wallet = Wallet(
         phone_number=wallet.phoneNumber,
         withdrawal_fee=wallet.withdrawalFee,
@@ -317,6 +330,7 @@ async def get_wallet_by_id(
         "balances": db_wallet.balances,
         "lightning_address": db_wallet.lightning_address,
         "withdrawal_fee": db_wallet.withdrawal_fee,
+        "preferred_fiat_currency": db_wallet.preferred_fiat_currency
     }
     return response_data
 
@@ -337,3 +351,42 @@ def forex(amount_to_send, sender_fiat_currency, receiver_fiat_currency):
 
     return amount_to_send * rates[rate_key]
 
+
+
+
+@app.get("/api/payments/{wallet_id}/", response_model=PaymentsResponse) 
+async def get_payments_for_wallet(wallet_id: str, db: Session = Depends(get_db)):
+    sender_payments = db.query(Payment).filter(Payment.source_wallet_id == wallet_id).all()
+    receiver_payments = db.query(Payment).filter(Payment.receiver_wallet_id == wallet_id).all()
+    all_payments = sender_payments + receiver_payments
+    payments_response = []
+    
+    for payment in all_payments:
+        sender_wallet = db.query(Wallet).get(payment.source_wallet_id)
+        receiver_wallet = db.query(Wallet).get(payment.receiver_wallet_id)
+        
+        sent_payment = payment.source_wallet_id == wallet_id
+        receive_payment = payment.receiver_wallet_id == wallet_id
+        
+        payment_response = PaymentResponse(
+            id=payment.id,
+            amount=payment.amount,
+            currency=payment.currency,
+            timestamp=payment.timestamp,
+            payment_status=payment.payment_status,
+            sender_wallet=sender_wallet.__dict__,
+            receiver_wallet=receiver_wallet.__dict__,
+            sent_payment=sent_payment,
+            receive_payment=receive_payment,
+            fees =sender_wallet.withdrawal_fee
+        )
+        payments_response.append(payment_response)
+        
+    return PaymentsResponse(payments=payments_response)
+
+
+
+@app.post("/api/invoice/decode")
+def decode_address(address: Any):
+    decoded_invoice = decode_invoice(address)
+    return decoded_invoice

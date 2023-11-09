@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
+from sqlalchemy.sql import func
 
 # revision identifiers, used by Alembic.
 revision: str = '2695b2c4de7b'
@@ -46,6 +46,21 @@ def upgrade() -> None:
     sa.Column('currency', sa.String(), nullable=False),
     sa.ForeignKeyConstraint(['wallet_id'], ['wallets.id'], ),
     sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table(
+        'payments',
+        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column('source_wallet_id', sa.String(), sa.ForeignKey('wallets.id', name='fk_payments_source_wallet_id'), nullable=False),
+        sa.Column('receiver_wallet_id', sa.String(), sa.ForeignKey('wallets.id', name='fk_payments_receiver_wallet_id'), nullable=False),
+        sa.Column('amount', sa.Float(), nullable=False),
+        sa.Column('currency', sa.String(), nullable=False),
+        sa.Column('sent_payment', sa.Boolean(), default=False), 
+        sa.Column('receive_payment', sa.Boolean(), default=False),
+        sa.Column('fees', sa.Integer(), nullable=True),
+        sa.Column('timestamp', sa.DateTime(), server_default=func.now()),
+        sa.Column('payment_status', sa.String(), default="Pending"),
+        sa.PrimaryKeyConstraint('id'),
+        sa.CheckConstraint('source_wallet_id != receiver_wallet_id')
     )
     # ### end Alembic commands ###
 
