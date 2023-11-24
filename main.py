@@ -79,6 +79,12 @@ rates = {
     "KES/BTC": 0.000000236,
     "BTC/NGN": 21644172.60,
     "NGN/BTC": 0.000000046,
+    "BTC/GHS": 451424.22,
+    "GHS/BTC": 0.0000022,
+    "GHS/KES": 12.76,
+    "KES/GHS": 0.078,
+    "GHS/NGN": 67.14,
+    "NGN/GHS": 0.015,
 }
 
 @app.post('/api/invoices', response_model=InvoiceResponseSchema)  # Use the response schema
