@@ -3,7 +3,7 @@ from typing import List, Literal
 from typing import Optional
 from datetime import datetime
 
-Currency = Literal["NGN", "KES", "BTC"]
+Currency = Literal["NGN", "KES", "GHS", "BTC"]
 
 class WalletCreateSchema(BaseModel):
     phoneNumber: str
